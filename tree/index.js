@@ -88,7 +88,6 @@ DecisionTreeClassifier.prototype = {
             if (child_node) {
                root = child_node.child;
             }
-            break;
         }
 
         return root.val;
