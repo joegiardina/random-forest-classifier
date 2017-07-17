@@ -62,7 +62,8 @@
 
 var async = require('async'),
     utils = require('../utilities'),
-    DecisionTreeClassifier = require('../tree');
+    DecisionTreeClassifier = require('../tree'),
+    _ = require("underscore");
 
 var RandomForestClassifier = function(params) {
     this.n_estimators = params.n_estimators || 10;
@@ -82,6 +83,39 @@ var _parallel_build_tree = function(data, features, y) {
     };
 };
 
+var _predict = function(sample, tree) {
+        var root = tree.model;
+
+        if (typeof root === 'undefined') {
+            return 'null';
+        }
+
+        while (root.type !== "result") {
+            var attr = root.name;
+            var child_node;
+            if (root.type === 'feature_real') {
+                var sample_value = parseFloat(sample[attr]);
+                if (sample_value <= root.cut){
+                    child_node = root.vals[1];
+                } else {
+                    child_node = root.vals[0];
+                }
+            } else {
+                var sample_value = sample[attr];
+                child_node = _.detect(root.vals, function(x) {
+                    return x.name == sample_value;
+                });
+            }
+            if (child_node) {
+               root = child_node.child;
+            } else {
+                break;
+            }
+        }
+
+        return root.val;
+    }
+
 RandomForestClassifier.prototype = {
     fit: function(data, features, y, cb) {
         // initialize & fit trees
@@ -94,11 +128,16 @@ RandomForestClassifier.prototype = {
     },
     predict: function(data, trees) {
         this.trees = trees;
+
         var probabilities = new Array(data.length);
         for (var i=0; i < data.length ;i++) {
             var dec = [];
             for (var j=0; j < this.n_estimators; j++){
-                dec.push(trees[j].predict(data[i]));
+                if (trees[j].predict) {
+                    dec.push(trees[j].predict(data[i]));
+                } else {
+                    dec.push(_predict(data[i], trees[j]))
+                }
             }
             if (utils.GetType(dec[0]) == "string"){
                 probabilities[i] = utils.GetDominate(dec);
